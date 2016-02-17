@@ -226,7 +226,7 @@ sub export_invoices {
                     $title = decode_entities($titles[0]->getFirstChild->getData);
                 }
 
-                $details{'SGTXT'} = sprintf("%-10s%-10s%-30s", $line_number, $bib_id, $title);
+                $details{'SGTXT'} = "$line_number $bib_id $title";
             }
 
             add_invoice_line(\%details);
