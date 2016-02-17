@@ -1,6 +1,7 @@
 #!/usr/bin/env perl -w
 use strict;
 use warnings;
+use DateTime;
 use Fcntl ':flock';
 use Getopt::Long;
 use HTML::Entities;
@@ -169,21 +170,39 @@ sub export_invoices {
         foreach my $invoice_line (@valid_invoice_lines) {
             $pos++;
             my %details = (
-                'SAKNR' => '$glcode',
-                'AMOUNT' => '',
-                'SGTXT' => '',
+                'AMOUNT' => get_unique_field($invoice_line, 'total_price'),
             );
 
-            $details{'AMOUNT'} = get_unique_field($invoice_line, 'total_price');
+            my $now = DateTime->now;
+            my $cost_center_epoch = DateTime->new(
+                year  => 2016,
+                month => 7,
+                day   => 1,
+            );
 
-            # The fund_info element is repeatable.  For now, I'm just taking
-            # the first element.
+            # Before 2016-07-01, cost center and G/L code are
+            # stored in the external_id element (in that order),
+            # delimited by a hyphen.  Afterward, G/L code is
+            # stored in reporting_code, and cost center is stored
+            # in external_id.
             #
-            # The external_id element is optional, and the Ex Libris sample
-            # does not include it.
-            my @external_ids = $invoice->getElementsByTagName('external_id');
-            if (scalar(@external_ids) > 0) {
-                $details{'SAKNR'} = $external_ids[0]->getFirstChild->getData;
+            # Here I am assuming that 2016-07-01 is *part of* the
+            # cost center epoch, that is, that *on* 2016-07-01, the
+            # new behavior will be in place.
+            #
+            # I'm also explicitly assuming that the invoice line includes
+            # exactly one external_id element.  The XSD does not require
+            # this.
+            if ($now < $cost_center_epoch) {
+                my $external_id = get_unique_field($invoice_line, 'external_id');
+                if ($external_id =~ /(?<cost_center>[^-]+)-(?<glcode>[^-]+)$/) {
+                    $details{'SAKNR'} = $+{glcode};
+                    $details{'KOSTL'} = $+{cost_center};
+                }
+            }
+            else {
+                $details{'SAKNR'} = get_unique_field($invoice_line, 'reporting_code');
+                $details{'KOSTL'} = get_unique_field($invoice_line, 'external_id');
             }
 
             # The po_line_info element is optional according to the spec.
@@ -195,7 +214,7 @@ sub export_invoices {
                 # The mms_record_id element is optional, and the Ex Libris example
                 # does not use it.
                 my @mms_record_ids = $po_line_info->getElementsByTagName('mms_record_id');
-                my $bib_id = '$bibid';
+                my $bib_id = '          ';
                 if (scalar(@mms_record_ids) > 0) {
                     $bib_id = get_unique_field($po_line_info, 'mms_record_id');
                 }
