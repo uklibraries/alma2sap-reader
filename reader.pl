@@ -104,11 +104,23 @@ sub export_invoices {
 
     INVOICE: foreach my $invoice ($root->getElementsByTagName('invoice')) {
         initialize_invoice();
-
         my %header = (
-            'SGTXT' => 'xxxxxx Univ of Kentucky Libraries',
-            'DOCDATE' => 'YYYYMMDD',
+            'VENDORTYPE' => '    ',
         );
+
+        # We only need to process invoices with a nonzero amount.
+        my @amounts = $invoice->getElementsByTagName('invoice_amount');
+        my $amount = get_unique_field($amounts[0], 'sum');
+        if ($amount =~ /^0*\.?0*$/) {
+            next INVOICE;
+        }
+        else {
+            $header{'AMOUNT'} = $amount;
+        }
+
+        my $unique_identifier = get_unique_field($invoice, 'unique_identifier');
+        $header{'SGTXT'} = join(' ', $unique_identifier, 'Univ of Kentucky Libraries');
+        $header{'DOCDATE'} = strftime('%Y%m%d', localtime());
 
         # Each invoice must contain exactly one invoice_date.
         # The sample XML file provided by Ex Libris formats the
@@ -131,19 +143,11 @@ sub export_invoices {
 
         # The vendor_FinancialSys_Code is optional, and the sample
         # file from Ex Libris does not include it.
+        #
+        # However, we require it locally.
         my @codes = $invoice->getElementsByTagName('vendor_FinancialSys_Code');
         if (scalar(@codes) > 0) {
             $header{'LIFNR'} = $codes[0]->getFirstChild->getData;
-        }
-
-        # We only need to process invoices with a nonzero amount.
-        my @amounts = $invoice->getElementsByTagName('invoice_amount');
-        my $amount = get_unique_field($amounts[0], 'sum');
-        if ($amount =~ /^0*\.?0*$/) {
-            next INVOICE;
-        }
-        else {
-            $header{'AMOUNT'} = $amount;
         }
 
         set_header(\%header);
