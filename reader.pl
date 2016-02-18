@@ -177,18 +177,16 @@ sub export_invoices {
             my $cost_center_epoch = DateTime->new(
                 year  => 2016,
                 month => 7,
-                day   => 1,
+                day   => 18,
             );
 
-            # Before 2016-07-01, cost center and G/L code are
+            # Before 2016-07-18, cost center and G/L code are
             # stored in the external_id element (in that order),
             # delimited by a hyphen.  Afterward, G/L code is
             # stored in reporting_code, and cost center is stored
             # in external_id.
             #
-            # Here I am assuming that 2016-07-01 is *part of* the
-            # cost center epoch, that is, that *on* 2016-07-01, the
-            # new behavior will be in place.
+            # Note: 2016-07-18 is *part of* the new epoch.
             #
             # I'm also explicitly assuming that the invoice line includes
             # exactly one external_id element.  The XSD does not require
