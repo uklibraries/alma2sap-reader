@@ -167,6 +167,11 @@ sub export_invoices {
             next INVOICE;
         }
 
+        # Reverse POs are also not permitted.
+        if ($header{'LIFNR'} =~ /reverse po/i) {
+            next INVOICE;
+        }
+
         set_header(\%header);
 
         my @invoice_lines = $invoice->getElementsByTagName('invoice_line');
