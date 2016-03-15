@@ -161,6 +161,12 @@ sub export_invoices {
             $header{'LIFNR'} = $codes[0]->getFirstChild->getData;
         }
 
+        # Moreover, we are not permitted to transmit credit card transactions.
+        # These are identified by '**CC**'.
+        if ($header{'LIFNR'} =~ /\*\*CC\*\*/) {
+            next INVOICE;
+        }
+
         set_header(\%header);
 
         my @invoice_lines = $invoice->getElementsByTagName('invoice_line');
