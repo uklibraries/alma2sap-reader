@@ -57,8 +57,8 @@ foreach my $file (readdir $dh) {
 }
 
 # Begin building data file
-# Sample data file name:  d_aplibr_uklibraries_2015-10-15-210001
-my $data_file = strftime('d_aplibr_uklibraries_%Y-%m-%d-%H%M%S', localtime());
+# Sample data file name:  d_aplibr_uklibraries20151015
+my $data_file = strftime('d_aplibr_uklibraries%Y%m%d', localtime());
 debug("Generating data file $data_file in $outbox");
 
 # Process Alma XML
@@ -66,6 +66,8 @@ opendir ($dh, $todo)
     or die "$0: can't open directory $todo: $!";
 open(my $data_fh, '>', "$outbox/$data_file")
     or die "$0: can't open file $outbox/$data_file for output: $!";
+    binmode $data_fh, ":encoding(UTF-8)";
+my $successes = 0;
 foreach my $file (readdir $dh) {
     next if $file =~ /^\./;
     if ($file =~ /\.xml$/ and -f "$todo/$file") {
@@ -76,14 +78,22 @@ foreach my $file (readdir $dh) {
         }
         else {
             print $data_fh join('', @entries);
+            $successes++;
             rename "$todo/$file", "$success/$file";
         }
     }
 }
 close($data_fh) or die "$0: can't close file $outbox/$data_file: $!";
 
-debug("Submitting $data_file to $destination");
-rename "$outbox/$data_file", "$destination/inbox/$data_file";
+if ($successes > 0) {
+    debug("Submitting $data_file to $destination");
+    chmod 0664, "$outbox/$data_file";
+    rename "$outbox/$data_file", "$destination/inbox/$data_file";
+}
+else {
+    debug("No input files, deleting $data_file");
+    unlink "$outbox/$data_file";
+}
 
 sub export_invoices {
     my (
