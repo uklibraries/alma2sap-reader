@@ -3,6 +3,8 @@ package SAP::InboundInterface;
 use 5.010;
 use strict;
 use warnings;
+use utf8;
+use Text::Unidecode;
 
 require Exporter;
 
@@ -279,6 +281,8 @@ sub normalize {
         $column,
         $value,
     ) = @_;
+
+    $value = unidecode($value);
 
     if (exists ${$format_ref}{$column}) {
         my $format    = ${$format_ref}{$column};

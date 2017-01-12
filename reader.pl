@@ -3,10 +3,12 @@ use strict;
 use warnings;
 use DateTime;
 use Fcntl ':flock';
+use File::Slurp;
 use Getopt::Long;
 use HTML::Entities;
 use POSIX;
 use XML::LibXML;
+use XML::Validate;
 use SAP::InboundInterface ':all';
 use feature 'say';
 
@@ -23,13 +25,15 @@ INIT {
 my $root = 0;
 my $destination = 0;
 my $log = 0;
+my $report = 0;
 # It would be nice to check against this.
 #my $xsd = 'https://developers.exlibrisgroup.com/resources/xsd/invoice_payment.xsd';
 
 GetOptions(
     'root=s'        => \$root,
     'destination=s' => \$destination,
-    'log=s'         => \$log)
+    'log=s'         => \$log,
+    'report=s'      => \$report)
     or die "$0: can't load options: $!";
 
 if (!$root || !$destination) {
@@ -37,6 +41,19 @@ if (!$root || !$destination) {
         debug("no configuration available, exiting");
     }
     die "$0: no configuration available, exiting";
+}
+
+my %error_types = (
+    'xml'      => 'Alma XML parsing errors',
+    'invoice'  => 'Invoice errors',
+);
+my %errors = ();
+my $error_type;
+foreach $error_type (keys %error_types) {
+    $errors{$error_type} = ();
+}
+foreach $error_type (keys %error_types) {
+    push @{$errors{$error_type}}, 'foo';
 }
 
 my $inbox   = "$root/inbox";
@@ -72,6 +89,7 @@ foreach my $file (readdir $dh) {
     next if $file =~ /^\./;
     if ($file =~ /\.xml$/ and -f "$todo/$file") {
         my ($error, @entries) = export_invoices("$todo/$file");
+        #record_error('xml', "test error for $file");
         if ($error) {
             debug("failed to generate output for $file");
             rename "$todo/$file", "$failure/$file";
@@ -95,6 +113,27 @@ else {
     unlink "$outbox/$data_file";
 }
 
+# File report
+my $error_count = 0;
+foreach $error_type (keys %error_types) {
+    $error_count += scalar(@{$errors{$error_type}}) - 1;
+}
+
+if ($error_count > 0) {
+    foreach $error_type (keys %error_types) {
+        if (scalar(@{$errors{$error_type}}) > 1) {
+            shift @{$errors{$error_type}};
+            my $heading = $error_types{$error_type};
+            # Newline is deliberate
+            report("$heading\n");
+            foreach my $message (@{$errors{$error_type}}) {
+                report(" * $message");
+            }
+            report("\n");
+        }
+    }
+}
+
 sub export_invoices {
     my (
         $alma_file,
@@ -105,10 +144,16 @@ sub export_invoices {
     my @export = ();
 
     debug("processing $alma_file");
-    my $parser = XML::LibXML->new;
-    my $doc = $parser->parse_file($alma_file);
-    if (!$doc) {
+    my $validator = new XML::Validate(Type => 'LibXML');
+    my $alma_contents = read_file($alma_file);
+    my $doc = 0;
+    if ($validator->validate($alma_contents)) {
+        my $parser = XML::LibXML->new;
+        $doc = $parser->parse_file($alma_file);
+    }
+    else {
         debug("can't parse $alma_file");
+        record_error('xml', "Alma file $alma_file is not valid XML");
         return 1, @export;
     }
     my $root = $doc->documentElement;
@@ -160,15 +205,20 @@ sub export_invoices {
         if (scalar(@codes) > 0) {
             $header{'LIFNR'} = $codes[0]->getFirstChild->getData;
         }
+        else {
+            $header{'LIFNR'} = '';
+        }
 
         # Moreover, we are not permitted to transmit credit card transactions.
         # These are identified by '**CC**'.
         if ($header{'LIFNR'} =~ /\*\*CC\*\*/) {
+            record_error('invoice', "$unique_identifier: no credit card transactions permitted");
             next INVOICE;
         }
 
         # Reverse POs are also not permitted.
         if ($header{'LIFNR'} =~ /reverse po/i) {
+            record_error('invoice', "$unique_identifier: no reverse POs permitted");
             next INVOICE;
         }
 
@@ -332,4 +382,24 @@ sub debug {
     );
 
     say $log_fh join(' ', @log_pieces);
+}
+
+sub report {
+    my (
+        $message,
+    ) = @_;
+
+    open(my $report_fh, '>>', $report)
+        or die "$0: can't open $report for appending: $!";
+
+    say $report_fh $message;
+}
+
+sub record_error {
+    my (
+        $type,
+        $message,
+    ) = @_;
+
+    push @{$errors{$type}}, $message;
 }
