@@ -1,0 +1,11 @@
+The files lib/SAP/InboundInterface.pm and reader.pl are
+copyright (C) 2016 Michael Slone <m.slone@gmail.com>.
+
+These files are free software; you can redistribute them and/or modify
+them under the same terms as Perl itself, either Perl version 5.10.0 or,
+at your option, any later version of Perl 5 you may have available.
+
+The file run.sh incorporates an argument parsing scheme by Bruno Bronosky
+which was licensed under the MIT license at the time it was incorporated.
+The rest of the file is copyright (C) 2016 Michael Slone <m.slone@gmail.com>,
+and I commit it to the public domain.
