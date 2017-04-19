@@ -230,7 +230,8 @@ sub export_invoices {
 
         INVOICE_LINE: foreach my $invoice_line (@invoice_lines) {
             my $line_amount = get_unique_field($invoice_line, 'total_price');
-            if ($line_amount =~ /^0*\.?0*$/) {
+            my $reporting_code = get_unique_field($invoice_line, 'reporting_code');
+            if ($line_amount =~ /^0*\.?0*$/ or $reporting_code eq 'NotFoundError') {
                 next INVOICE_LINE;
             }
             else {
@@ -315,7 +316,13 @@ sub get_unique_field
     ) = @_;
 
     my @collection = $xml->getElementsByTagName($xpath);
-    return $collection[0]->getFirstChild->getData;
+
+    if (scalar(@collection) > 0) {
+        return $collection[0]->getFirstChild->getData;
+    }
+    else {
+        return 'NotFoundError';
+    }
 }
 
 sub convert_to_iso8601
